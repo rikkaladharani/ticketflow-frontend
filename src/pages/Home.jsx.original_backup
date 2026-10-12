@@ -1,0 +1,1539 @@
+import { useEffect, useState } from "react";
+
+import { useNavigate } from "react-router-dom";
+
+import "../styles.css";
+
+function Home() {
+
+  const navigate = useNavigate();
+
+  const [search, setSearch] = useState("");
+
+  const [user, setUser] = useState(null);
+
+  const [searchResults, setSearchResults] = useState(null);
+
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState("");
+
+  const [venues, setVenues] = useState([]);
+  const [venuesLoading, setVenuesLoading] = useState(true);
+  const [selectedEventForDetails, setSelectedEventForDetails] = useState(null);
+  const [selectedVenueForDetails, setSelectedVenueForDetails] = useState(null);
+  const [venueActiveTab, setVenueActiveTab] = useState("map");
+
+  const [wishlist, setWishlist] = useState(() => {
+
+    try {
+
+      const savedWishlist = JSON.parse(
+
+        localStorage.getItem("ticketflowWishlist") || "[]"
+
+      );
+
+      return Array.isArray(savedWishlist) ? savedWishlist : [];
+
+    } catch {
+
+      return [];
+
+    }
+
+  });
+
+  // Load logged-in user
+
+  useEffect(() => {
+
+    try {
+
+      const savedUser = localStorage.getItem("ticketflowUser");
+
+      if (savedUser) {
+
+        setUser(JSON.parse(savedUser));
+
+      }
+
+    } catch (error) {
+
+      console.error("Failed to load user:", error);
+
+      localStorage.removeItem("ticketflowUser");
+
+    }
+
+  }, []);
+
+useEffect(() => {
+
+  const fetchEvents = async () => {
+
+    try {
+
+      setEventsLoading(true);
+
+      setEventsError("");
+
+      const response = await fetch("http://localhost:8080/api/events");
+
+      if (!response.ok) {
+
+        throw new Error("Unable to load events.");
+
+      }
+
+      const data = await response.json();
+
+      const formattedEvents = data.map((event) => ({
+        id: event.id,
+        title: event.title || "Untitled Event",
+        description: event.description || "Join us for an exciting live event experience.",
+        category: event.category || "Other",
+        date: event.eventDate
+          ? new Date(event.eventDate).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "Date to be announced",
+        rawDate: event.eventDate,
+        startTime: event.startTime ? String(event.startTime).substring(0, 5) : null,
+        endTime: event.endTime ? String(event.endTime).substring(0, 5) : null,
+        venue: event.venue?.name || "Venue to be announced",
+        venueDetails: event.venue || null,
+        location:
+          event.venue?.city ||
+          event.venue?.location ||
+          "Location to be announced",
+        address: event.venue?.address || "",
+        hasStalls: Boolean(event.hasStalls),
+        price: "View seat prices",
+        image:
+          event.imageUrl ||
+          "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=80",
+        rawEvent: event,
+      }));
+
+      setEvents(formattedEvents);
+
+    } catch (error) {
+
+      console.error("Failed to fetch events:", error);
+
+      setEventsError(error.message || "Unable to load events.");
+
+    } finally {
+
+      setEventsLoading(false);
+
+    }
+
+  };
+
+  fetchEvents();
+
+}, []);
+
+  // Event categories
+
+  const categories = [
+
+    { icon: "🎵", name: "Concerts", searchTerm: "music" },
+
+    { icon: "⚽", name: "Sports", searchTerm: "sports" },
+
+    { icon: "🎭", name: "Theatre", searchTerm: "theatre" },
+
+    { icon: "🎪", name: "Festivals", searchTerm: "festival" },
+
+    { icon: "🍴", name: "Food Events", searchTerm: "food" },
+
+    { icon: "💼", name: "Conferences", searchTerm: "conference" },
+
+  ];
+
+  useEffect(() => {
+    const fetchVenues = async () => {
+      try {
+        setVenuesLoading(true);
+        const response = await fetch("http://localhost:8080/api/venues");
+        if (response.ok) {
+          const data = await response.json();
+          const venueList = data.map((v) => {
+            let gallery = [];
+            if (v.name.includes("Arena") || v.layoutType === "CONCERT") {
+              gallery = [
+                { url: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=800&q=80", title: "Arena Stage Lights" },
+                { url: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80", title: "EDM Festival Crowd" },
+                { url: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80", title: "Live Orchestra Night" },
+              ];
+            } else if (v.name.includes("Auditorium") || v.layoutType === "AUDITORIUM") {
+              gallery = [
+                { url: "https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&w=800&q=80", title: "Grand Auditorium Hall" },
+                { url: "https://images.unsplash.com/photo-1514306191717-452ec28c7814?auto=format&fit=crop&w=800&q=80", title: "Comedy & Stand-up Show" },
+                { url: "https://images.unsplash.com/photo-1469488865564-c2de10f69f96?auto=format&fit=crop&w=800&q=80", title: "Acoustic Unplugged" },
+              ];
+            } else {
+              gallery = [
+                { url: "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80", title: "Stadium Under Lights" },
+                { url: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=800&q=80", title: "Mega Concert Night" },
+                { url: "https://images.unsplash.com/photo-1471295253337-3ceaaedca402?auto=format&fit=crop&w=800&q=80", title: "Live Championship" },
+              ];
+            }
+            return {
+              id: v.id,
+              name: v.name,
+              location: v.city || "Hyderabad",
+              address: v.address || "Gachibowli",
+              capacity: `${Number(v.capacity).toLocaleString("en-IN")}+ seats`,
+              layoutType: v.layoutType || "CONCERT",
+              description: v.description || "Premier multi-purpose entertainment venue.",
+              image: v.imageUrl || "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=900&q=80",
+              gallery,
+            };
+          });
+          setVenues(venueList);
+        }
+      } catch (err) {
+        console.error("Venues fetch error:", err);
+      } finally {
+        setVenuesLoading(false);
+      }
+    };
+    fetchVenues();
+  }, []);
+
+  // Scroll to events section
+
+  const scrollToEvents = () => {
+
+    document.getElementById("events")?.scrollIntoView({
+
+      behavior: "smooth",
+
+      block: "start",
+
+    });
+
+  };
+
+  // Search events
+
+const filterEvents = (query) => {
+
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+
+    setSearchResults(null);
+
+    return;
+
+  }
+
+  const results = events.filter((event) =>
+
+    [
+
+      event.title,
+
+      event.category,
+
+      event.location,
+
+      event.venue,
+
+      event.date,
+
+    ].some((value) =>
+
+      String(value || "").toLowerCase().includes(normalizedQuery)
+
+    )
+
+  );
+
+  setSearchResults(results);
+
+  scrollToEvents();
+
+};
+
+  const handleSearch = (event) => {
+
+    event.preventDefault();
+
+    filterEvents(search);
+
+  };
+
+  // Filter events by category
+
+  const handleCategoryClick = (category) => {
+
+    setSearch(category.searchTerm);
+
+    filterEvents(category.searchTerm);
+
+  };
+
+  // Add or remove wishlist items
+
+  const toggleWishlist = (eventTitle) => {
+
+    if (!user) {
+
+      navigate("/login");
+
+      return;
+
+    }
+
+    setWishlist((previousWishlist) => {
+
+      const updatedWishlist = previousWishlist.includes(eventTitle)
+
+        ? previousWishlist.filter((title) => title !== eventTitle)
+
+        : [...previousWishlist, eventTitle];
+
+      try {
+
+        localStorage.setItem(
+
+          "ticketflowWishlist",
+
+          JSON.stringify(updatedWishlist)
+
+        );
+
+      } catch (error) {
+
+        console.error("Failed to save wishlist:", error);
+
+      }
+
+      return updatedWishlist;
+
+    });
+
+  };
+
+  // Dashboard according to role
+
+  const getDashboardPath = () => {
+
+    const role = String(user?.role || "").toUpperCase();
+
+    if (role === "ORGANIZER") {
+
+      return "/organizer/dashboard";
+
+    }
+
+    if (role === "STALL_OWNER") {
+
+      return "/stall-owner/dashboard";
+
+    }
+
+    if (role === "ADMIN") {
+
+      return "/admin/dashboard";
+
+    }
+
+    return "/customer/dashboard";
+
+  };
+
+  // Logout
+
+  const handleLogout = () => {
+    localStorage.removeItem("ticketflowUser");
+    localStorage.removeItem("ticketflowToken");
+    localStorage.removeItem("ticketflowLoggedIn");
+    sessionStorage.removeItem("ticketflowLoggedIn");
+    setUser(null);
+    navigate("/login");
+  };
+
+  // Explore event - opens full details modal
+  const handleExploreEvent = (event) => {
+    setSelectedEventForDetails(event);
+  };
+
+  return (
+
+    <div className="ticketflow-app">
+
+      {/* ================= NAVBAR ================= */}
+
+      <header className="navbar">
+
+        <div className="navbar-inner">
+
+          <a href="/" className="brand">
+
+            <span className="brand-icon">🎟</span>
+
+            <span>TICKETFLOW</span>
+
+          </a>
+
+          <nav className="nav-links">
+
+            <a href="#events">Events</a>
+
+            <a href="#venues">Venues</a>
+
+            <a href="#categories">Categories</a>
+
+            <a href="#about">About</a>
+
+          </nav>
+
+          <div className="nav-actions">
+
+            {user ? (
+
+              <div className="nav-user">
+
+                <a href={getDashboardPath()}>
+
+                  Dashboard
+
+                </a>
+
+                <span>
+
+                  Hi, {user.firstName || user.name || "User"}
+
+                </span>
+
+                <button
+
+                  type="button"
+
+                  onClick={handleLogout}
+
+                >
+
+                  Logout
+
+                </button>
+
+              </div>
+
+            ) : (
+
+              <>
+
+                <a href="/login" className="login-btn">
+
+                  Login
+
+                </a>
+
+                <a href="/register" className="register-btn">
+
+                  Register
+
+                </a>
+
+              </>
+
+            )}
+
+          </div>
+
+        </div>
+
+      </header>
+
+      {/* ================= HERO SECTION ================= */}
+
+      <main>
+
+        <section className="hero">
+
+          <div className="hero-overlay"></div>
+
+          <div className="hero-content">
+
+            <div className="hero-badge">
+
+              DISCOVER <span>•</span> BOOK <span>•</span> EXPERIENCE
+
+            </div>
+
+            <h1>
+
+              Your next
+
+              <br />
+
+              <span>unforgettable</span> event
+
+              <br />
+
+              starts here.
+
+            </h1>
+
+            <p>
+
+              Discover concerts, sports, festivals, theatre and more.
+
+              Find the perfect event, choose your seat and book your
+
+              experience with TicketFlow.
+
+            </p>
+
+            <form
+
+              className="search-box"
+
+              onSubmit={handleSearch}
+
+            >
+
+              <div className="search-input-wrapper">
+
+                <span className="search-icon">⌕</span>
+
+                <input
+
+                  type="text"
+
+                  placeholder="Search events, venues or cities..."
+
+                  value={search}
+
+                  onChange={(event) =>
+
+                    setSearch(event.target.value)
+
+                  }
+
+                  aria-label="Search events, venues or cities"
+
+                />
+
+              </div>
+
+              <button type="submit">
+
+                Search
+
+              </button>
+
+            </form>
+
+            <div className="hero-tags">
+
+              <span>🎵 Concerts</span>
+
+              <span>⚽ Sports</span>
+
+              <span>🎭 Theatre</span>
+
+              <span>🎪 Festivals</span>
+
+            </div>
+
+          </div>
+
+          <div className="hero-decoration">
+
+            <div className="floating-card card-one">
+
+              <span>🎟</span>
+
+              <div>
+
+                <strong>Easy Booking</strong>
+
+                <small>Choose your perfect seat</small>
+
+              </div>
+
+            </div>
+
+            <div className="floating-card card-two">
+
+              <span>📍</span>
+
+              <div>
+
+                <strong>Great Venues</strong>
+
+                <small>Explore amazing places</small>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* ================= CATEGORIES ================= */}
+
+        <section
+
+          className="section categories-section"
+
+          id="categories"
+
+        >
+
+          <div className="section-heading">
+
+            <div>
+
+              <span className="section-label">
+
+                EXPLORE
+
+              </span>
+
+              <h2>Find something you&apos;ll love</h2>
+
+            </div>
+
+            <p>
+
+              Explore events across different categories and
+
+              discover your next experience.
+
+            </p>
+
+          </div>
+
+          <div className="category-grid">
+
+            {categories.map((category) => (
+
+              <button
+
+                type="button"
+
+                className="category-card"
+
+                key={category.name}
+
+                onClick={() => handleCategoryClick(category)}
+
+              >
+
+                <span className="category-icon">
+
+                  {category.icon}
+
+                </span>
+
+                <span>{category.name}</span>
+
+                <span className="category-arrow">
+
+                  →
+
+                </span>
+
+              </button>
+
+            ))}
+
+          </div>
+
+        </section>
+
+        {/* ================= UPCOMING EVENTS ================= */}
+
+        <section
+
+          className="section events-section"
+
+          id="events"
+
+        >
+
+          <div className="section-heading">
+
+            <div>
+
+              <span className="section-label">
+
+                DON&apos;T MISS OUT
+
+              </span>
+
+              <h2>
+
+                {searchResults === null
+
+                  ? "Upcoming events"
+
+                  : "Search results"}
+
+              </h2>
+
+            </div>
+
+</div>
+
+          {eventsLoading ? (
+            <p>Loading events...</p>
+          ) : eventsError ? (
+            <div className="no-events">
+              <h3>Unable to load events</h3>
+              <p>{eventsError}</p>
+            </div>
+          ) : searchResults !== null &&
+            searchResults.length === 0 ? (
+
+            <div className="no-events">
+
+              <h3>No events found</h3>
+
+              <p>
+
+                Try searching for another event, category,
+
+                venue, or city.
+
+              </p>
+
+              <button
+
+                type="button"
+
+                className="explore-btn"
+
+                onClick={() => {
+
+                  setSearch("");
+
+                  setSearchResults(null);
+
+                }}
+
+              >
+
+                Show all events
+
+              </button>
+
+            </div>
+
+          ) : (
+
+            <div className="event-grid">
+
+              {(searchResults ?? events).map((event) => (
+
+                <article
+                  className="event-card"
+                  key={event.id}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => handleExploreEvent(event)}
+                >
+                  <div className="event-image">
+                    <img
+                      src={event.image}
+                      alt={event.title}
+                      loading="lazy"
+                    />
+                    <span className="event-category">
+                      {event.category}
+                    </span>
+                    <button
+                      type="button"
+                      className="wishlist-btn"
+                      title={
+                        wishlist.includes(event.title)
+                          ? "Remove from wishlist"
+                          : "Add to wishlist"
+                      }
+                      aria-label={
+                        wishlist.includes(event.title)
+                          ? "Remove from wishlist"
+                          : "Add to wishlist"
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleWishlist(event.title);
+                      }}
+                    >
+                      {wishlist.includes(event.title)
+                        ? "♥"
+                        : "♡"}
+                    </button>
+                  </div>
+
+                  <div className="event-content">
+                    <div className="event-date">
+                      {event.date}
+                    </div>
+                    <h3>{event.title}</h3>
+                    <p className="event-location">
+                      📍 {event.venue}, {event.location}
+                    </p>
+                    <div className="event-bottom">
+                      <div>
+                        <span>Starting from</span>
+                        <strong>{event.price}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        className="explore-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExploreEvent(event);
+                        }}
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                </article>
+
+              ))}
+
+            </div>
+
+          )}
+
+        </section>
+
+        {/* ================= VENUES ================= */}
+
+        <section
+
+          className="section venues-section"
+
+          id="venues"
+
+        >
+
+          <div className="section-heading">
+
+            <div>
+
+              <span className="section-label">
+
+                DISCOVER PLACES
+
+              </span>
+
+              <h2>Popular venues</h2>
+
+            </div>
+
+            <p>
+
+              Every venue has its own atmosphere, capacity
+
+              and seating experience.
+
+            </p>
+
+          </div>
+
+          <div className="venue-grid">
+            {venuesLoading ? (
+              <p style={{ color: "#64748b" }}>Loading popular venues...</p>
+            ) : venues.length === 0 ? (
+              <p style={{ color: "#64748b" }}>No venues found.</p>
+            ) : (
+              venues.map((venue) => (
+                <article
+                  className="venue-card"
+                  key={venue.id || venue.name}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => {
+                    setSelectedVenueForDetails(venue);
+                    setVenueActiveTab("map");
+                  }}
+                >
+                  <div className="venue-image" style={{ position: "relative" }}>
+                    <img
+                      src={venue.image}
+                      alt={venue.name}
+                      loading="lazy"
+                    />
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "12px",
+                        right: "12px",
+                        background: "rgba(15, 23, 42, 0.8)",
+                        color: "#ffffff",
+                        padding: "4px 10px",
+                        borderRadius: "20px",
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      {venue.layoutType}
+                    </span>
+                  </div>
+
+                  <div className="venue-content">
+                    <h3>{venue.name}</h3>
+                    <p>📍 {venue.location}</p>
+                    <span>{venue.capacity}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVenueForDetails(venue);
+                        setVenueActiveTab("map");
+                      }}
+                    >
+                      View Seating Map &amp; Photos &rarr;
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+
+        </section>
+
+        {/* ================= BOOKING PROMO ================= */}
+
+        <section className="booking-promo">
+
+          <div className="booking-promo-content">
+
+            <span className="section-label">
+
+              BOOK YOUR EXPERIENCE
+
+            </span>
+
+            <h2>
+
+              Find the perfect event.
+
+              <br />
+
+              Choose the perfect seat.
+
+            </h2>
+
+            <p>
+
+              Explore detailed venue layouts and select
+
+              your seats with confidence before you book.
+
+            </p>
+
+            <button
+
+              type="button"
+
+              className="promo-btn"
+
+              onClick={scrollToEvents}
+
+            >
+
+              Explore events →
+
+            </button>
+
+          </div>
+
+          <div className="seat-preview">
+
+            <div className="stage-preview">
+
+              STAGE
+
+            </div>
+
+            <div className="seat-row">
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span className="selected"></span>
+
+              <span></span>
+
+              <span></span>
+
+            </div>
+
+            <div className="seat-row">
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+            </div>
+
+            <div className="seat-row">
+
+              <span></span>
+
+              <span className="booked"></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span className="booked"></span>
+
+              <span></span>
+
+            </div>
+
+            <div className="seat-row">
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+              <span></span>
+
+            </div>
+
+            <p>
+
+              Select your seat. Own your view.
+
+            </p>
+
+          </div>
+
+        </section>
+
+        {/* ================= ABOUT ================= */}
+
+        <section
+
+          className="about-section"
+
+          id="about"
+
+        >
+
+          <div>
+
+            <span className="section-label">
+
+              WHY TICKETFLOW?
+
+            </span>
+
+            <h2>More than just a ticket.</h2>
+
+            <p>
+
+              TicketFlow brings events, venues, seats,
+
+              bookings and experiences together in one place.
+
+            </p>
+
+          </div>
+
+          <div className="about-features">
+
+            <div>
+
+              <span>01</span>
+
+              <strong>Discover</strong>
+
+              <p>
+
+                Find events that match your interests.
+
+              </p>
+
+            </div>
+
+            <div>
+
+              <span>02</span>
+
+              <strong>Choose</strong>
+
+              <p>
+
+                Understand the venue and select your ideal seat.
+
+              </p>
+
+            </div>
+
+            <div>
+
+              <span>03</span>
+
+              <strong>Experience</strong>
+
+              <p>
+
+                Get your digital ticket and enjoy the event.
+
+              </p>
+
+            </div>
+
+          </div>
+
+        </section>
+
+      </main>
+
+      {/* ================= FOOTER ================= */}
+
+      <footer className="footer">
+
+        <div className="footer-inner">
+
+          <div>
+
+            <a
+
+              href="/"
+
+              className="brand footer-brand"
+
+            >
+
+              <span className="brand-icon">
+
+                🎟
+
+              </span>
+
+              <span>TICKETFLOW</span>
+
+            </a>
+
+            <p>Discover. Book. Experience.</p>
+
+          </div>
+
+          <div className="footer-links">
+
+            <a href="#events">Events</a>
+
+            <a href="#venues">Venues</a>
+
+            <a href="#categories">Categories</a>
+
+            <a href="#about">About</a>
+
+          </div>
+
+        </div>
+
+        <div className="footer-bottom">
+
+          <span>
+
+            © 2026 TicketFlow. All rights reserved.
+
+          </span>
+
+          <span>
+
+            Event Ticket Booking &amp; Management System
+
+          </span>
+
+        </div>
+
+      </footer>
+
+      {/* ================= EVENT DETAILS MODAL ================= */}
+      {selectedEventForDetails && (
+        <div className="details-modal-overlay" onClick={() => setSelectedEventForDetails(null)}>
+          <div className="details-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="details-modal-hero">
+              <img src={selectedEventForDetails.image} alt={selectedEventForDetails.title} />
+              <div className="details-modal-hero-overlay">
+                <span
+                  style={{
+                    background: "rgba(255, 255, 255, 0.2)",
+                    backdropFilter: "blur(4px)",
+                    color: "#ffffff",
+                    padding: "4px 12px",
+                    borderRadius: "20px",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    width: "fit-content",
+                    marginBottom: "8px",
+                  }}
+                >
+                  {selectedEventForDetails.category}
+                </span>
+                <h2>{selectedEventForDetails.title}</h2>
+              </div>
+              <button
+                type="button"
+                className="details-modal-close"
+                onClick={() => setSelectedEventForDetails(null)}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="details-modal-body">
+              <div className="details-info-grid">
+                <div className="details-info-item">
+                  <small>Event Date &amp; Time</small>
+                  <strong>{selectedEventForDetails.date}</strong>
+                  {selectedEventForDetails.startTime && (
+                    <div style={{ color: "#64748b", fontSize: "12px", marginTop: "3px" }}>
+                      ⏰ {selectedEventForDetails.startTime} {selectedEventForDetails.endTime ? `- ${selectedEventForDetails.endTime}` : ""}
+                    </div>
+                  )}
+                </div>
+
+                <div className="details-info-item">
+                  <small>Venue Location</small>
+                  <strong>{selectedEventForDetails.venue}</strong>
+                  <div style={{ color: "#64748b", fontSize: "12px", marginTop: "3px" }}>
+                    📍 {selectedEventForDetails.address ? `${selectedEventForDetails.address}, ` : ""}{selectedEventForDetails.location}
+                  </div>
+                </div>
+
+                <div className="details-info-item">
+                  <small>Seating Arrangement</small>
+                  <strong>{selectedEventForDetails.venueDetails?.layoutType || "Reserved Seating"} Layout</strong>
+                  <div style={{ color: "#64748b", fontSize: "12px", marginTop: "3px" }}>
+                    Interactive seat selection map
+                  </div>
+                </div>
+
+                <div className="details-info-item">
+                  <small>Ticket Categories</small>
+                  <strong style={{ color: "var(--primary, #2563eb)" }}>VIP • Premium • Regular</strong>
+                  <div style={{ color: "#64748b", fontSize: "12px", marginTop: "3px" }}>
+                    Select your seat &amp; view pricing
+                  </div>
+                </div>
+              </div>
+
+              {selectedEventForDetails.hasStalls && (
+                <div className="details-stalls-banner">
+                  <span style={{ fontSize: "24px" }}>🏪</span>
+                  <div>
+                    <strong>Food &amp; Refreshment Stalls Available</strong>
+                    <div style={{ fontSize: "12.5px", marginTop: "2px" }}>
+                      Stall owners will be serving food and drinks at this event. You can pre-order your menu items during checkout to skip the queue!
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="details-desc-box">
+                <h4>About This Event</h4>
+                <p>{selectedEventForDetails.description}</p>
+              </div>
+            </div>
+
+            <div className="details-modal-footer">
+              <button
+                type="button"
+                className="dashboard-home"
+                style={{
+                  border: "1px solid #cbd5e1",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+                onClick={() => setSelectedEventForDetails(null)}
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                className="btn-proceed-booking"
+                onClick={() => {
+                  const evId = selectedEventForDetails.id;
+                  setSelectedEventForDetails(null);
+                  if (!user) {
+                    navigate("/login");
+                  } else {
+                    navigate(`/customer/book/${evId}`);
+                  }
+                }}
+              >
+                Proceed to Buy Tickets &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= VENUE DETAILS & SEATING MAP MODAL ================= */}
+      {selectedVenueForDetails && (
+        <div className="details-modal-overlay" onClick={() => setSelectedVenueForDetails(null)}>
+          <div className="details-modal-dialog venue-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="details-modal-hero">
+              <img src={selectedVenueForDetails.image} alt={selectedVenueForDetails.name} />
+              <div className="details-modal-hero-overlay">
+                <div style={{ display: "flex", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      background: "rgba(37, 99, 235, 0.4)",
+                      backdropFilter: "blur(4px)",
+                      color: "#ffffff",
+                      padding: "4px 10px",
+                      borderRadius: "20px",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {selectedVenueForDetails.layoutType} LAYOUT
+                  </span>
+                  <span
+                    style={{
+                      background: "rgba(34, 197, 94, 0.4)",
+                      backdropFilter: "blur(4px)",
+                      color: "#ffffff",
+                      padding: "4px 10px",
+                      borderRadius: "20px",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {selectedVenueForDetails.capacity}
+                  </span>
+                </div>
+                <h2>{selectedVenueForDetails.name}</h2>
+              </div>
+              <button
+                type="button"
+                className="details-modal-close"
+                onClick={() => setSelectedVenueForDetails(null)}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Venue Tabs Bar */}
+            <div className="venue-tabs-bar">
+              <button
+                type="button"
+                className={`venue-tab-btn ${venueActiveTab === "map" ? "active" : ""}`}
+                onClick={() => setVenueActiveTab("map")}
+              >
+                Seating Arrangement Map
+              </button>
+              <button
+                type="button"
+                className={`venue-tab-btn ${venueActiveTab === "gallery" ? "active" : ""}`}
+                onClick={() => setVenueActiveTab("gallery")}
+              >
+                Previous Events Gallery
+              </button>
+              <button
+                type="button"
+                className={`venue-tab-btn ${venueActiveTab === "events" ? "active" : ""}`}
+                onClick={() => setVenueActiveTab("events")}
+              >
+                Upcoming Shows ({events.filter((e) => e.venue === selectedVenueForDetails.name || e.venueDetails?.id === selectedVenueForDetails.id).length})
+              </button>
+            </div>
+
+            <div className="details-modal-body">
+              {/* Tab 1: Seating Map Visualizer */}
+              {venueActiveTab === "map" && (
+                <div>
+                  <div style={{ marginBottom: "16px" }}>
+                    <p style={{ margin: 0, color: "#475569", fontSize: "14px" }}>
+                      {selectedVenueForDetails.name} is configured with a high-capacity <strong>{selectedVenueForDetails.layoutType}</strong> seating scheme. Seats are arranged in tiered rows ensuring optimal acoustics and stage visibility.
+                    </p>
+                  </div>
+
+                  <div className="venue-seating-map-preview">
+                    <div className="venue-stage-box">
+                      {selectedVenueForDetails.layoutType === "STADIUM"
+                        ? "CENTER PITCH / ARENA STAGE"
+                        : "MAIN STAGE / PERFORMANCE AREA"}
+                    </div>
+
+                    <div className="venue-tier-rows">
+                      <div className="venue-tier-card tier-vip">
+                        <span>★ VIP Tier (Front Rows / Stage Front)</span>
+                        <span>Rows A - D • Premium Acoustic View</span>
+                      </div>
+
+                      <div className="venue-tier-card tier-premium">
+                        <span>◆ Premium Tier (Lower Bowl / Center Stalls)</span>
+                        <span>Rows E - L • Direct Sightlines</span>
+                      </div>
+
+                      <div className="venue-tier-card tier-general">
+                        <span>● General Admission (Upper Tier / Bleachers)</span>
+                        <span>Rows M - Z • Panoramic Stadium View</span>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        gap: "24px",
+                        marginTop: "22px",
+                        fontSize: "12px",
+                        color: "#94a3b8",
+                        borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                        paddingTop: "14px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span>🟢 Available Seats</span>
+                      <span>🟡 Selected Seats</span>
+                      <span>🔴 Reserved / Booked</span>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px 18px", fontSize: "13px", color: "#64748b" }}>
+                    📍 <strong>Address:</strong> {selectedVenueForDetails.address}, {selectedVenueForDetails.location} • <strong>Capacity:</strong> {selectedVenueForDetails.capacity}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Previous Events Gallery */}
+              {venueActiveTab === "gallery" && (
+                <div>
+                  <p style={{ margin: "0 0 16px 0", color: "#475569", fontSize: "14px" }}>
+                    Moments captured from previous live concerts, sports tournaments, and festivals hosted at {selectedVenueForDetails.name}:
+                  </p>
+                  <div className="venue-gallery-grid">
+                    {selectedVenueForDetails.gallery?.map((photo, idx) => (
+                      <div className="venue-gallery-item" key={idx}>
+                        <img src={photo.url} alt={photo.title} />
+                        <div className="venue-gallery-caption">{photo.title}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Upcoming Shows at this Venue */}
+              {venueActiveTab === "events" && (
+                <div>
+                  {events.filter((e) => e.venue === selectedVenueForDetails.name || e.venueDetails?.id === selectedVenueForDetails.id).length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                      <p>No upcoming public events currently scheduled at this venue.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {events
+                        .filter((e) => e.venue === selectedVenueForDetails.name || e.venueDetails?.id === selectedVenueForDetails.id)
+                        .map((e) => (
+                          <div
+                            key={e.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "14px 18px",
+                              border: "1px solid #e2e8f0",
+                              borderRadius: "12px",
+                              background: "#f8fafc",
+                              gap: "14px",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                              <img
+                                src={e.image}
+                                alt={e.title}
+                                style={{ width: "54px", height: "54px", borderRadius: "8px", objectFit: "cover" }}
+                              />
+                              <div>
+                                <strong style={{ fontSize: "15px", display: "block", color: "#0f172a" }}>{e.title}</strong>
+                                <small style={{ color: "#64748b" }}>{e.date} • {e.category}</small>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="explore-btn"
+                              onClick={() => {
+                                setSelectedVenueForDetails(null);
+                                setSelectedEventForDetails(e);
+                              }}
+                            >
+                              View Event &rarr;
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="details-modal-footer">
+              <button
+                type="button"
+                className="dashboard-home"
+                style={{
+                  border: "1px solid #cbd5e1",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+                onClick={() => setSelectedVenueForDetails(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+
+  );
+
+}
+
+export default Home;
